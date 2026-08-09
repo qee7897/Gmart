@@ -35,6 +35,8 @@ async function initDb() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE SEQUENCE IF NOT EXISTS member_code_seq START 100001;
+
     CREATE TABLE IF NOT EXISTS transactions (
       id SERIAL PRIMARY KEY,
       member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
@@ -119,11 +121,14 @@ app.post("/api/members", async (req,res) => {
   try {
     const {name, phone} = req.body;
     if (!name || !phone) return res.status(400).json({error:"กรุณากรอกชื่อและเบอร์โทร"});
-    const code = "M" + Date.now().toString().slice(-8);
+    const cleanPhone = phone.replace(/[^0-9]/g,"");
+    if (cleanPhone.length < 9 || cleanPhone.length > 10) return res.status(400).json({error:"เบอร์โทรไม่ถูกต้อง"});
+    const seq = await db("SELECT nextval('member_code_seq') AS n");
+    const code = String(seq.rows[0].n);
     const result = await db(
       `INSERT INTO members (member_code,name,phone) VALUES ($1,$2,$3)
        RETURNING id,member_code,name,phone,points,created_at`,
-      [code, name.trim(), phone.trim()]
+      [code, name.trim(), cleanPhone]
     );
     res.json(result.rows[0]);
   } catch(e) {
@@ -140,6 +145,36 @@ app.get("/api/members/:code", async (req,res) => {
      WHERE member_id=$1 ORDER BY created_at DESC LIMIT 30`, [m.rows[0].id]
   );
   res.json({...m.rows[0], transactions: tx.rows});
+});
+
+// ค้นหาด้วยรหัสสมาชิก หรือ เบอร์โทร (exact match เท่านั้น เพื่อความเป็นส่วนตัว — ใช้ตอนลูกค้าเช็คคะแนนของตัวเอง)
+app.get("/api/members/lookup/find", async (req,res) => {
+  const q = String(req.query.q || "").trim();
+  if (!q) return res.status(400).json({error:"กรุณากรอกรหัสสมาชิกหรือเบอร์โทร"});
+  const cleanQ = q.replace(/[^0-9]/g,"") || q;
+  const m = await db("SELECT id,member_code,name,phone,points,created_at FROM members WHERE member_code=$1 OR phone=$1",[cleanQ]);
+  if (!m.rows[0]) return res.status(404).json({error:"ไม่พบสมาชิก กรุณาตรวจสอบรหัสสมาชิกหรือเบอร์โทรอีกครั้ง"});
+  const tx = await db(
+    `SELECT type,points,amount,description,created_at FROM transactions
+     WHERE member_id=$1 ORDER BY created_at DESC LIMIT 30`, [m.rows[0].id]
+  );
+  res.json({...m.rows[0], transactions: tx.rows});
+});
+
+// ค้นหาแบบไม่ตรงเป๊ะ (รหัส/เบอร์/ชื่อ) — เฉพาะแอดมินเท่านั้น เพื่อป้องกันการเปิดเผยข้อมูลสมาชิกคนอื่น
+app.get("/api/admin/members", requireAdmin, async (req,res) => {
+  const q = String(req.query.search || "").trim();
+  if (!q) {
+    const all = await db("SELECT id,member_code,name,phone,points,created_at FROM members ORDER BY created_at DESC LIMIT 50");
+    return res.json(all.rows);
+  }
+  const like = `%${q}%`;
+  const r = await db(
+    `SELECT id,member_code,name,phone,points,created_at FROM members
+     WHERE member_code ILIKE $1 OR phone ILIKE $1 OR name ILIKE $1
+     ORDER BY created_at DESC LIMIT 50`, [like]
+  );
+  res.json(r.rows);
 });
 
 app.post("/api/admin/earn", requireAdmin, async (req,res) => {
@@ -166,9 +201,84 @@ app.post("/api/admin/earn", requireAdmin, async (req,res) => {
   } finally { client.release(); }
 });
 
+app.post("/api/admin/adjust", requireAdmin, async (req,res) => {
+  const {memberCode, delta, reason} = req.body;
+  const numericDelta = Math.trunc(Number(delta));
+  if (!memberCode || !Number.isFinite(numericDelta) || numericDelta === 0) return res.status(400).json({error:"ข้อมูลไม่ถูกต้อง"});
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const m = await client.query("SELECT * FROM members WHERE member_code=$1 FOR UPDATE",[memberCode]);
+    if (!m.rows[0]) throw new Error("ไม่พบสมาชิก");
+    if (m.rows[0].points + numericDelta < 0) throw new Error("แต้มคงเหลือไม่พอสำหรับการปรับนี้");
+    await client.query("UPDATE members SET points=points+$1 WHERE id=$2",[numericDelta,m.rows[0].id]);
+    await client.query(
+      `INSERT INTO transactions (member_id,type,points,description) VALUES ($1,'adjust',$2,$3)`,
+      [m.rows[0].id,numericDelta,String(reason||"ปรับคะแนนโดยแอดมิน").slice(0,200)]
+    );
+    await client.query("COMMIT");
+    res.json({ok:true,points:numericDelta});
+  } catch(e) {
+    await client.query("ROLLBACK");
+    res.status(400).json({error:e.message});
+  } finally { client.release(); }
+});
+
 app.get("/api/rewards", async (req,res) => {
   const r = await db("SELECT * FROM rewards WHERE active=true ORDER BY points");
   res.json(r.rows);
+});
+
+// จัดการของรางวัล (แอดมิน) — ดูทั้งหมดรวมที่ปิดใช้งาน
+app.get("/api/admin/rewards", requireAdmin, async (req,res) => {
+  const r = await db("SELECT * FROM rewards ORDER BY created_at DESC");
+  res.json(r.rows);
+});
+
+app.post("/api/admin/rewards", requireAdmin, async (req,res) => {
+  const {name, points, stock} = req.body;
+  const numPoints = Math.trunc(Number(points));
+  const numStock = Math.trunc(Number(stock));
+  if (!name || !Number.isFinite(numPoints) || numPoints <= 0) return res.status(400).json({error:"ข้อมูลไม่ถูกต้อง"});
+  if (!Number.isFinite(numStock) || numStock < 0) return res.status(400).json({error:"จำนวนคงเหลือไม่ถูกต้อง"});
+  const r = await db(
+    "INSERT INTO rewards (name,points,stock) VALUES ($1,$2,$3) RETURNING *",
+    [String(name).trim().slice(0,150), numPoints, numStock]
+  );
+  res.json(r.rows[0]);
+});
+
+app.put("/api/admin/rewards/:id", requireAdmin, async (req,res) => {
+  const {name, points, stock, active} = req.body;
+  const existing = await db("SELECT * FROM rewards WHERE id=$1",[req.params.id]);
+  if (!existing.rows[0]) return res.status(404).json({error:"ไม่พบของรางวัล"});
+  const cur = existing.rows[0];
+  const newName = name !== undefined ? String(name).trim().slice(0,150) : cur.name;
+  const newPoints = points !== undefined ? Math.trunc(Number(points)) : cur.points;
+  const newStock = stock !== undefined ? Math.trunc(Number(stock)) : cur.stock;
+  const newActive = active !== undefined ? !!active : cur.active;
+  if (!newName || !Number.isFinite(newPoints) || newPoints <= 0) return res.status(400).json({error:"ข้อมูลไม่ถูกต้อง"});
+  if (!Number.isFinite(newStock) || newStock < 0) return res.status(400).json({error:"จำนวนคงเหลือไม่ถูกต้อง"});
+  const r = await db(
+    "UPDATE rewards SET name=$1, points=$2, stock=$3, active=$4 WHERE id=$5 RETURNING *",
+    [newName, newPoints, newStock, newActive, req.params.id]
+  );
+  res.json(r.rows[0]);
+});
+
+app.delete("/api/admin/rewards/:id", requireAdmin, async (req,res) => {
+  try {
+    const r = await db("DELETE FROM rewards WHERE id=$1 RETURNING id",[req.params.id]);
+    if (!r.rows[0]) return res.status(404).json({error:"ไม่พบของรางวัล"});
+    res.json({ok:true});
+  } catch(e) {
+    if (e.code === "23503") {
+      // มีประวัติแลกของรางวัลนี้แล้ว ลบไม่ได้ ให้ปิดใช้งานแทน
+      await db("UPDATE rewards SET active=false WHERE id=$1",[req.params.id]);
+      return res.json({ok:true, deactivated:true, message:"ของรางวัลนี้เคยถูกแลกแล้ว จึงปิดการใช้งานแทนการลบ"});
+    }
+    res.status(500).json({error:"เกิดข้อผิดพลาด"});
+  }
 });
 
 app.post("/api/redeem", async (req,res) => {
@@ -204,6 +314,60 @@ app.post("/api/redeem", async (req,res) => {
 app.get("/api/events", async (req,res) => {
   const r = await db("SELECT * FROM events WHERE active=true ORDER BY created_at DESC");
   res.json(r.rows);
+});
+
+// จัดการ Event (แอดมิน) — ดูทั้งหมดรวมที่ปิดใช้งาน
+app.get("/api/admin/events", requireAdmin, async (req,res) => {
+  const r = await db("SELECT * FROM events ORDER BY created_at DESC");
+  res.json(r.rows);
+});
+
+app.post("/api/admin/events", requireAdmin, async (req,res) => {
+  const {name, description, points, prize, startsAt, endsAt} = req.body;
+  const numPoints = Math.trunc(Number(points));
+  if (!name || !Number.isFinite(numPoints) || numPoints < 0) return res.status(400).json({error:"ข้อมูลไม่ถูกต้อง"});
+  const r = await db(
+    `INSERT INTO events (name,description,points,prize,starts_at,ends_at) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [String(name).trim().slice(0,180), description||null, numPoints, prize||null, startsAt||null, endsAt||null]
+  );
+  res.json(r.rows[0]);
+});
+
+app.put("/api/admin/events/:id", requireAdmin, async (req,res) => {
+  const existing = await db("SELECT * FROM events WHERE id=$1",[req.params.id]);
+  if (!existing.rows[0]) return res.status(404).json({error:"ไม่พบ Event"});
+  const cur = existing.rows[0];
+  const {name, description, points, prize, startsAt, endsAt, active} = req.body;
+  const newName = name !== undefined ? String(name).trim().slice(0,180) : cur.name;
+  const newPoints = points !== undefined ? Math.trunc(Number(points)) : cur.points;
+  if (!newName || !Number.isFinite(newPoints) || newPoints < 0) return res.status(400).json({error:"ข้อมูลไม่ถูกต้อง"});
+  const r = await db(
+    `UPDATE events SET name=$1, description=$2, points=$3, prize=$4,
+     starts_at=$5, ends_at=$6, active=$7 WHERE id=$8 RETURNING *`,
+    [newName,
+     description !== undefined ? description : cur.description,
+     newPoints,
+     prize !== undefined ? prize : cur.prize,
+     startsAt !== undefined ? startsAt : cur.starts_at,
+     endsAt !== undefined ? endsAt : cur.ends_at,
+     active !== undefined ? !!active : cur.active,
+     req.params.id]
+  );
+  res.json(r.rows[0]);
+});
+
+app.delete("/api/admin/events/:id", requireAdmin, async (req,res) => {
+  try {
+    const r = await db("DELETE FROM events WHERE id=$1 RETURNING id",[req.params.id]);
+    if (!r.rows[0]) return res.status(404).json({error:"ไม่พบ Event"});
+    res.json({ok:true});
+  } catch(e) {
+    if (e.code === "23503") {
+      await db("UPDATE events SET active=false WHERE id=$1",[req.params.id]);
+      return res.json({ok:true, deactivated:true, message:"Event นี้มีคนเข้าร่วมแล้ว จึงปิดการใช้งานแทนการลบ"});
+    }
+    res.status(500).json({error:"เกิดข้อผิดพลาด"});
+  }
 });
 
 app.post("/api/events/join", async (req,res) => {
