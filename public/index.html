@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grocery Loyalty</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">🛒 <span>Grocery<span class="accent">Club</span></span></div>
+  <nav>
+    <button class="nav active" data-page="home">หน้าสมาชิก</button>
+    <button class="nav" data-page="register">สมัครสมาชิก</button>
+    <button class="nav" data-page="admin">หลังร้าน</button>
+  </nav>
+</header>
+
+<main>
+<section id="home" class="page active">
+  <div class="hero">
+    <div>
+      <span class="pill">LOYALTY PROGRAM</span>
+      <h1>ซื้อของทุกวัน<br><span class="accent">คะแนนก็เพิ่มทุกวัน</span></h1>
+      <p>สะสมคะแนน แลกของรางวัล และใช้คะแนนร่วมกิจกรรมของร้าน</p>
+    </div>
+    <div class="hero-card">
+      <div class="small">MEMBER ID</div>
+      <input id="memberCode" placeholder="เช่น M12345678">
+      <button onclick="loadMember()">ดูคะแนนของฉัน</button>
+    </div>
+  </div>
+  <div id="memberView"></div>
+</section>
+
+<section id="register" class="page">
+  <div class="panel narrow">
+    <span class="pill">JOIN FREE</span>
+    <h2>สมัครสมาชิก</h2>
+    <p>รับคะแนนและสิทธิพิเศษจากร้าน</p>
+    <input id="regName" placeholder="ชื่อ-นามสกุล">
+    <input id="regPhone" placeholder="เบอร์โทรศัพท์">
+    <button onclick="register()">สมัครสมาชิก</button>
+    <div id="regResult"></div>
+  </div>
+</section>
+
+<section id="admin" class="page">
+  <div class="panel">
+    <span class="pill">ADMIN</span>
+    <h2>หลังร้าน</h2>
+    <div class="admin-login">
+      <input id="adminKey" type="password" placeholder="ADMIN_KEY">
+      <button onclick="saveAdmin()">เข้าสู่ระบบ</button>
+    </div>
+    <div id="adminArea" hidden>
+      <div id="stats" class="stats"></div>
+      <hr>
+      <h3>เพิ่มคะแนนจากยอดซื้อ</h3>
+      <div class="grid2">
+        <input id="earnMember" placeholder="Member ID">
+        <input id="earnAmount" type="number" placeholder="ยอดซื้อ (บาท)">
+      </div>
+      <input id="earnDesc" placeholder="รายละเอียด เช่น ซื้อสินค้า">
+      <button onclick="earnPoints()">เพิ่มคะแนน</button>
+      <div id="adminResult"></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>
