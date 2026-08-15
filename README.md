@@ -14,7 +14,3 @@
 - 🛠️ หน้า Admin ครบวงจร (สถิติ, ค้นหา/จัดการสมาชิก, จัดการของรางวัล, จัดการ Event)
 - PostgreSQL พร้อม Deploy บน Render
 
-## Deploy
-1. `npm install`
-2. ตั้งค่า `DATABASE_URL` (PostgreSQL) และ `ADMIN_KEY` ใน environment variables
-3. `npm start`
