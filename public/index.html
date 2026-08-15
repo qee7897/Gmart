@@ -3,51 +3,108 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Grocery Loyalty</title>
+<title>GroceryClub — สะสมคะแนน แลกของรางวัล</title>
 <link rel="stylesheet" href="/style.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 </head>
 <body>
-<header>
-  <div class="brand">🛒 <span>Grocery<span class="accent">Club</span></span></div>
-  <nav>
-    <button class="nav active" data-page="home">หน้าสมาชิก</button>
-    <button class="nav" data-page="register">สมัครสมาชิก</button>
-    <a href="/admin" class="nav">หลังร้าน</a>
-  </nav>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-inner">
+    <a href="/" class="logo">🛒 <span>Grocery<span class="accent">Club</span></span></a>
+    <nav class="nav" id="mainNav">
+      <button class="nav-btn active" data-page="home">หน้าสมาชิก</button>
+      <button class="nav-btn" data-page="register">สมัครสมาชิก</button>
+      <a href="/admin" class="nav-btn nav-link">หลังร้าน</a>
+    </nav>
+    <button class="mobile-menu" onclick="toggleMobileNav()">☰</button>
+  </div>
 </header>
 
-<main>
+<!-- Hero -->
 <section id="home" class="page active">
   <div class="hero">
-    <div>
+    <div class="hero-content">
       <span class="pill">LOYALTY PROGRAM</span>
-      <h1>ซื้อของทุกวัน<br><span class="accent">คะแนนก็เพิ่มทุกวัน</span></h1>
-      <p>สะสมคะแนน แลกของรางวัล และใช้คะแนนร่วมกิจกรรมของร้าน</p>
+      <h1>ช้อปของทุกวัน<br><span class="accent">คะแนนก็เพิ่มทุกวัน</span></h1>
+      <p class="hero-desc">สะสมคะแนนจากทุกยอดซื้อ แลกของรางวัลสุดพิเศษ และเข้าร่วมอีเวนต์สนุกๆ จากร้านของเรา</p>
+      <div class="hero-features">
+        <div class="hf"><span class="hf-icon">⭐</span><span>ทุก 20 บาท = 1 แต้ม</span></div>
+        <div class="hf"><span class="hf-icon">🎁</span><span>แลกของรางวัลได้เลย</span></div>
+        <div class="hf"><span class="hf-icon">🎉</span><span>ร่วมอีเวนต์ลุ้นโชค</span></div>
+      </div>
     </div>
     <div class="hero-card">
-      <div class="small">รหัสสมาชิก หรือ เบอร์โทร</div>
-      <input id="memberCode" placeholder="เช่น 100001 หรือ 0812345678">
-      <button onclick="loadMember()">ดูคะแนนของฉัน</button>
+      <div class="card-label">ตรวจสอบคะแนน</div>
+      <h3>กรอกรหัสสมาชิก หรือ เบอร์โทร</h3>
+      <div class="input-group">
+        <input id="memberCode" placeholder="เช่น 100001 หรือ 0812345678" autocomplete="off">
+        <button class="btn-primary" onclick="loadMember()">
+          <span>ค้นหา</span> <span class="btn-arrow">→</span>
+        </button>
+      </div>
+      <div class="card-hint">สแกน QR Code จากบัตรสมาชิกก็ได้</div>
     </div>
   </div>
-  <div id="memberView"></div>
+
+  <!-- Member Result -->
+  <div id="memberView" class="member-view"></div>
 </section>
 
+<!-- Register -->
 <section id="register" class="page">
-  <div class="panel narrow">
-    <span class="pill">JOIN FREE</span>
-    <h2>สมัครสมาชิก</h2>
-    <p>รับคะแนนและสิทธิพิเศษจากร้าน</p>
-    <input id="regName" placeholder="ชื่อ-นามสกุล">
-    <input id="regPhone" placeholder="เบอร์โทรศัพท์">
-    <button onclick="register()">สมัครสมาชิก</button>
-    <div id="regResult"></div>
+  <div class="register-wrap">
+    <div class="register-card">
+      <span class="pill">JOIN FREE</span>
+      <h2>สมัครสมาชิก</h2>
+      <p>รับคะแนนและสิทธิพิเศษจากร้าน — ฟรี ไม่มีค่าใช้จ่าย</p>
+      <div class="reg-form">
+        <div class="form-group">
+          <label>ชื่อ-นามสกุล</label>
+          <input id="regName" placeholder="กรอกชื่อของคุณ">
+        </div>
+        <div class="form-group">
+          <label>เบอร์โทรศัพท์</label>
+          <input id="regPhone" placeholder="08X-XXX-XXXX">
+        </div>
+        <button class="btn-primary btn-full" onclick="register()">สมัครสมาชิก</button>
+      </div>
+      <div id="regResult" class="reg-result"></div>
+    </div>
+    <div class="register-info">
+      <h3>สิทธิพิเศษสำหรับสมาชิก</h3>
+      <div class="perk">
+        <div class="perk-icon">💰</div>
+        <div>
+          <div class="perk-title">สะสมแต้มทุกยอดซื้อ</div>
+          <div class="perk-desc">ทุก 20 บาท รับ 1 แต้ม สะสมได้เรื่อยๆ</div>
+        </div>
+      </div>
+      <div class="perk">
+        <div class="perk-icon">🎁</div>
+        <div>
+          <div class="perk-title">แลกของรางวัล</div>
+          <div class="perk-desc">ใช้แต้มแลกน้ำดื่ม ขนม คูปองส่วนลด</div>
+        </div>
+      </div>
+      <div class="perk">
+        <div class="perk-icon">🎉</div>
+        <div>
+          <div class="perk-title">ร่วมอีเวนต์พิเศษ</div>
+          <div class="perk-desc">ใช้แต้มแลกสิทธิ์ลุ้นรางวัลใหญ่</div>
+        </div>
+      </div>
+      <div class="perk">
+        <div class="perk-icon">📱</div>
+        <div>
+          <div class="perk-title">บัตรสมาชิกดิจิทัล</div>
+          <div class="perk-desc">QR Code ส่วนตัว สแกนเช็คแต้มได้ทันที</div>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
-
-
-</main>
 
 <script src="/app.js"></script>
 </body>

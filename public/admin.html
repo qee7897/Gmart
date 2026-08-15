@@ -10,23 +10,23 @@
 </head>
 <body class="admin-body">
 
-<!-- ===== Login Overlay ===== -->
+<!-- Login Overlay -->
 <div id="loginOverlay" class="login-overlay">
   <div class="login-card">
     <div class="login-logo">🛒</div>
     <h1>Grocery<span class="accent">Club</span></h1>
     <p>หลังร้าน — เข้าสู่ระบบ</p>
     <input id="adminKeyInput" type="password" placeholder="ADMIN_KEY" autofocus>
-    <button onclick="doLogin()">เข้าสู่ระบบ</button>
+    <button class="login-btn" onclick="doLogin()">เข้าสู่ระบบ</button>
     <div id="loginError" class="login-error"></div>
   </div>
 </div>
 
-<!-- ===== App Shell ===== -->
+<!-- App Shell -->
 <div id="appShell" class="app-shell hidden">
 
   <!-- Sidebar -->
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">🛒 <span>Grocery<span class="accent">Club</span></span></div>
     <nav class="sidebar-nav">
       <button class="side-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">
@@ -48,10 +48,8 @@
     </div>
   </aside>
 
-  <!-- Main Content -->
+  <!-- Main -->
   <main class="admin-main">
-
-    <!-- Top Bar -->
     <div class="topbar">
       <button class="hamburger" onclick="toggleSidebar()">☰</button>
       <h2 id="pageTitle">แดชบอร์ด</h2>
@@ -60,58 +58,27 @@
       </div>
     </div>
 
-    <!-- ===== Dashboard Tab ===== -->
+    <!-- Dashboard -->
     <div class="tab active" id="tab-dashboard">
       <div class="stat-grid">
-        <div class="stat-card">
-          <div class="stat-icon">👥</div>
-          <div class="stat-body">
-            <div class="stat-label">สมาชิกทั้งหมด</div>
-            <div class="stat-value" id="statMembers">0</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">⭐</div>
-          <div class="stat-body">
-            <div class="stat-label">คะแนนแจกทั้งหมด</div>
-            <div class="stat-value" id="statEarned">0</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">🎁</div>
-          <div class="stat-body">
-            <div class="stat-label">คะแนนใช้แล้ว</div>
-            <div class="stat-value" id="statUsed">0</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">🎟️</div>
-          <div class="stat-body">
-            <div class="stat-label">สิทธิ์อีเวนต์</div>
-            <div class="stat-value" id="statEntries">0</div>
-          </div>
-        </div>
+        <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-body"><div class="stat-label">สมาชิกทั้งหมด</div><div class="stat-value" id="statMembers">0</div></div></div>
+        <div class="stat-card"><div class="stat-icon">⭐</div><div class="stat-body"><div class="stat-label">คะแนนแจกทั้งหมด</div><div class="stat-value" id="statEarned">0</div></div></div>
+        <div class="stat-card"><div class="stat-icon">🎁</div><div class="stat-body"><div class="stat-label">คะแนนใช้แล้ว</div><div class="stat-value" id="statUsed">0</div></div></div>
+        <div class="stat-card"><div class="stat-icon">🎟️</div><div class="stat-body"><div class="stat-label">สิทธิ์อีเวนต์</div><div class="stat-value" id="statEntries">0</div></div></div>
       </div>
-
       <div class="dashboard-grid">
         <div class="dash-card">
-          <div class="dash-card-head">
-            <h3>🎁 ของรางวัลล่าสุด</h3>
-            <button class="btn-sm btn-ghost" onclick="switchTab('rewards')">ดูทั้งหมด →</button>
-          </div>
+          <div class="dash-card-head"><h3>🎁 ของรางวัลล่าสุด</h3><button class="btn-sm btn-ghost" onclick="switchTab('rewards')">ดูทั้งหมด →</button></div>
           <div id="dashRewards"></div>
         </div>
         <div class="dash-card">
-          <div class="dash-card-head">
-            <h3>🎉 อีเวนต์ล่าสุด</h3>
-            <button class="btn-sm btn-ghost" onclick="switchTab('events')">ดูทั้งหมด →</button>
-          </div>
+          <div class="dash-card-head"><h3>🎉 อีเวนต์ล่าสุด</h3><button class="btn-sm btn-ghost" onclick="switchTab('events')">ดูทั้งหมด →</button></div>
           <div id="dashEvents"></div>
         </div>
       </div>
     </div>
 
-    <!-- ===== Members Tab ===== -->
+    <!-- Members -->
     <div class="tab" id="tab-members">
       <div class="toolbar">
         <div class="search-box">
@@ -120,10 +87,7 @@
           <kbd>Enter</kbd>
         </div>
       </div>
-
       <div id="memberList" class="member-list"></div>
-
-      <!-- Member Detail Panel (slides in) -->
       <div id="memberDetailPanel" class="detail-panel hidden">
         <div class="detail-panel-header">
           <h3>รายละเอียดสมาชิก</h3>
@@ -133,7 +97,7 @@
       </div>
     </div>
 
-    <!-- ===== Rewards Tab ===== -->
+    <!-- Rewards -->
     <div class="tab" id="tab-rewards">
       <div class="toolbar">
         <h3>รายการของรางวัล</h3>
@@ -142,7 +106,7 @@
       <div id="rewardsList" class="card-list"></div>
     </div>
 
-    <!-- ===== Events Tab ===== -->
+    <!-- Events -->
     <div class="tab" id="tab-events">
       <div class="toolbar">
         <h3>รายการอีเวนต์</h3>
@@ -150,23 +114,19 @@
       </div>
       <div id="eventsList" class="card-list"></div>
     </div>
-
   </main>
 </div>
 
-<!-- ===== Modal Overlay ===== -->
+<!-- Modal -->
 <div id="modalOverlay" class="modal-overlay hidden" onclick="closeModal()">
   <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-header">
-      <h3 id="modalTitle"></h3>
-      <button class="btn-close" onclick="closeModal()">✕</button>
-    </div>
+    <div class="modal-header"><h3 id="modalTitle"></h3><button class="btn-close" onclick="closeModal()">✕</button></div>
     <div class="modal-body" id="modalBody"></div>
     <div class="modal-footer" id="modalFooter"></div>
   </div>
 </div>
 
-<!-- ===== Toast Container ===== -->
+<!-- Toast -->
 <div id="toastContainer" class="toast-container"></div>
 
 <script src="/admin.js"></script>
