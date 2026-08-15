@@ -13,7 +13,7 @@
   <nav>
     <button class="nav active" data-page="home">หน้าสมาชิก</button>
     <button class="nav" data-page="register">สมัครสมาชิก</button>
-    <button class="nav" data-page="admin">หลังร้าน</button>
+    <a href="/admin" class="nav">หลังร้าน</a>
   </nav>
 </header>
 
@@ -46,79 +46,7 @@
   </div>
 </section>
 
-<section id="admin" class="page">
-  <div class="panel">
-    <span class="pill">ADMIN</span>
-    <h2>หลังร้าน</h2>
-    <div class="admin-login">
-      <input id="adminKey" type="password" placeholder="ADMIN_KEY">
-      <button onclick="saveAdmin()">เข้าสู่ระบบ</button>
-    </div>
-    <div id="adminArea" hidden>
-      <div id="stats" class="stats"></div>
 
-      <div class="subnav">
-        <button class="subnav-btn active" data-tab="mem">👤 สมาชิก</button>
-        <button class="subnav-btn" data-tab="rw">🎁 ของรางวัล</button>
-        <button class="subnav-btn" data-tab="ev">🎉 Event</button>
-      </div>
-
-      <!-- จัดการสมาชิก -->
-      <div class="subtab active" id="tab-mem">
-        <h3>ค้นหาสมาชิก</h3>
-        <p class="hint">ค้นได้ด้วยรหัสสมาชิก / เบอร์โทร / ชื่อ (พิมพ์บางส่วนก็ค้นเจอ)</p>
-        <div class="grid2">
-          <input id="adminSearch" placeholder="พิมพ์รหัส/เบอร์/ชื่อ แล้วกด Enter">
-          <button onclick="adminSearchMembers()">ค้นหา</button>
-        </div>
-        <div id="adminSearchResults"></div>
-
-        <div id="memberDetail"></div>
-      </div>
-
-      <!-- จัดการของรางวัล -->
-      <div class="subtab" id="tab-rw">
-        <h3>เพิ่มของรางวัลใหม่</h3>
-        <div class="grid3">
-          <input id="rwName" placeholder="ชื่อของรางวัล">
-          <input id="rwPoints" type="number" placeholder="ใช้กี่คะแนน">
-          <input id="rwStock" type="number" placeholder="จำนวนคงเหลือ">
-        </div>
-        <button onclick="createReward()">เพิ่มของรางวัล</button>
-        <div id="rwResult"></div>
-        <hr>
-        <h3>รายการของรางวัลทั้งหมด</h3>
-        <div id="rewardsList"></div>
-      </div>
-
-      <!-- จัดการ Event -->
-      <div class="subtab" id="tab-ev">
-        <h3>สร้าง Event ใหม่</h3>
-        <div class="grid2">
-          <input id="evName" placeholder="ชื่อ Event">
-          <input id="evPoints" type="number" placeholder="ใช้กี่คะแนนเข้าร่วม">
-        </div>
-        <input id="evDesc" placeholder="รายละเอียด Event">
-        <input id="evPrize" placeholder="รางวัล เช่น เงินสด 1,000 บาท">
-        <div class="grid2">
-          <div>
-            <div class="small">เริ่ม</div>
-            <input id="evStart" type="datetime-local">
-          </div>
-          <div>
-            <div class="small">สิ้นสุด</div>
-            <input id="evEnd" type="datetime-local">
-          </div>
-        </div>
-        <button onclick="createEvent()">สร้าง Event</button>
-        <div id="evResult"></div>
-        <hr>
-        <h3>รายการ Event ทั้งหมด</h3>
-        <div id="eventsList"></div>
-      </div>
-    </div>
-  </div>
-</section>
 </main>
 
 <script src="/app.js"></script>

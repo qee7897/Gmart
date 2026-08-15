@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GroceryClub — หลังร้าน</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/admin.css">
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+</head>
+<body class="admin-body">
+
+<!-- ===== Login Overlay ===== -->
+<div id="loginOverlay" class="login-overlay">
+  <div class="login-card">
+    <div class="login-logo">🛒</div>
+    <h1>Grocery<span class="accent">Club</span></h1>
+    <p>หลังร้าน — เข้าสู่ระบบ</p>
+    <input id="adminKeyInput" type="password" placeholder="ADMIN_KEY" autofocus>
+    <button onclick="doLogin()">เข้าสู่ระบบ</button>
+    <div id="loginError" class="login-error"></div>
+  </div>
+</div>
+
+<!-- ===== App Shell ===== -->
+<div id="appShell" class="app-shell hidden">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">🛒 <span>Grocery<span class="accent">Club</span></span></div>
+    <nav class="sidebar-nav">
+      <button class="side-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">
+        <span class="side-icon">📊</span> แดชบอร์ด
+      </button>
+      <button class="side-btn" data-tab="members" onclick="switchTab('members')">
+        <span class="side-icon">👤</span> สมาชิก
+      </button>
+      <button class="side-btn" data-tab="rewards" onclick="switchTab('rewards')">
+        <span class="side-icon">🎁</span> ของรางวัล
+      </button>
+      <button class="side-btn" data-tab="events" onclick="switchTab('events')">
+        <span class="side-icon">🎉</span> อีเวนต์
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="/" class="side-link">← กลับหน้าหลัก</a>
+      <button class="side-link logout" onclick="doLogout()">ออกจากระบบ</button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="admin-main">
+
+    <!-- Top Bar -->
+    <div class="topbar">
+      <button class="hamburger" onclick="toggleSidebar()">☰</button>
+      <h2 id="pageTitle">แดชบอร์ด</h2>
+      <div class="topbar-right">
+        <span class="topbar-badge" id="memberCountBadge">0 สมาชิก</span>
+      </div>
+    </div>
+
+    <!-- ===== Dashboard Tab ===== -->
+    <div class="tab active" id="tab-dashboard">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-icon">👥</div>
+          <div class="stat-body">
+            <div class="stat-label">สมาชิกทั้งหมด</div>
+            <div class="stat-value" id="statMembers">0</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⭐</div>
+          <div class="stat-body">
+            <div class="stat-label">คะแนนแจกทั้งหมด</div>
+            <div class="stat-value" id="statEarned">0</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🎁</div>
+          <div class="stat-body">
+            <div class="stat-label">คะแนนใช้แล้ว</div>
+            <div class="stat-value" id="statUsed">0</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🎟️</div>
+          <div class="stat-body">
+            <div class="stat-label">สิทธิ์อีเวนต์</div>
+            <div class="stat-value" id="statEntries">0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-grid">
+        <div class="dash-card">
+          <div class="dash-card-head">
+            <h3>🎁 ของรางวัลล่าสุด</h3>
+            <button class="btn-sm btn-ghost" onclick="switchTab('rewards')">ดูทั้งหมด →</button>
+          </div>
+          <div id="dashRewards"></div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-head">
+            <h3>🎉 อีเวนต์ล่าสุด</h3>
+            <button class="btn-sm btn-ghost" onclick="switchTab('events')">ดูทั้งหมด →</button>
+          </div>
+          <div id="dashEvents"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Members Tab ===== -->
+    <div class="tab" id="tab-members">
+      <div class="toolbar">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input id="memberSearch" placeholder="ค้นหาด้วยรหัส / เบอร์โทร / ชื่อ..." autocomplete="off">
+          <kbd>Enter</kbd>
+        </div>
+      </div>
+
+      <div id="memberList" class="member-list"></div>
+
+      <!-- Member Detail Panel (slides in) -->
+      <div id="memberDetailPanel" class="detail-panel hidden">
+        <div class="detail-panel-header">
+          <h3>รายละเอียดสมาชิก</h3>
+          <button class="btn-close" onclick="closeDetailPanel()">✕</button>
+        </div>
+        <div id="memberDetailContent"></div>
+      </div>
+    </div>
+
+    <!-- ===== Rewards Tab ===== -->
+    <div class="tab" id="tab-rewards">
+      <div class="toolbar">
+        <h3>รายการของรางวัล</h3>
+        <button class="btn-primary" onclick="openRewardModal()">+ เพิ่มของรางวัล</button>
+      </div>
+      <div id="rewardsList" class="card-list"></div>
+    </div>
+
+    <!-- ===== Events Tab ===== -->
+    <div class="tab" id="tab-events">
+      <div class="toolbar">
+        <h3>รายการอีเวนต์</h3>
+        <button class="btn-primary" onclick="openEventModal()">+ สร้างอีเวนต์</button>
+      </div>
+      <div id="eventsList" class="card-list"></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ===== Modal Overlay ===== -->
+<div id="modalOverlay" class="modal-overlay hidden" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="modalTitle"></h3>
+      <button class="btn-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-footer" id="modalFooter"></div>
+  </div>
+</div>
+
+<!-- ===== Toast Container ===== -->
+<div id="toastContainer" class="toast-container"></div>
+
+<script src="/admin.js"></script>
+</body>
+</html>
