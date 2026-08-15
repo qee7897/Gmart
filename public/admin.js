@@ -202,6 +202,14 @@ async function openMemberDetail(code) {
         </div>
       </div>
 
+      <div class="detail-section">
+        <h4>🗑️ จัดการสมาชิก</h4>
+        <div class="action-box">
+          <button class="btn-danger" style="width:100%" onclick="deleteMember('${esc(d.member_code)}','${esc(d.name)}')">🗑️ ลบสมาชิกนี้</button>
+          <div class="action-msg" style="font-size:12px;color:#94a3b8;margin-top:8px">ลบแล้วไม่สามารถกู้คืนได้ — ประวัติทั้งหมดจะถูกลบ</div>
+        </div>
+      </div>
+
       <div class="tx-list">
         <h4>📋 ประวัติคะแนน</h4>
         ${d.transactions.length ? d.transactions.map(x => `
@@ -284,6 +292,31 @@ async function doAdjust(code) {
   } catch (e) {
     msgEl.className = 'action-msg show err';
     msgEl.textContent = e.message;
+  }
+}
+
+function deleteMember(code, name) {
+  openModal('ยืนยันการลบสมาชิก', `
+    <p style="color:#475569">ต้องการลบสมาชิก "<b>${esc(name)}</b>" (รหัส ${esc(code)}) ใช่ไหม?</p>
+    <p style="color:#dc2626;font-size:13px">⚠️ ลบแล้วไม่สามารถกู้คืนได้ — ประวัติคะแนนและข้อมูลทั้งหมดจะถูกลบ</p>
+  `, `
+    <button class="btn-sm btn-ghost" onclick="closeModal()">ยกเลิก</button>
+    <button class="btn-danger" onclick="confirmDeleteMember('${esc(code)}')">🗑️ ยืนยันลบ</button>
+  `);
+}
+
+async function confirmDeleteMember(code) {
+  try {
+    const r = await fetch(`/api/admin/members/${encodeURIComponent(code)}`, { method: 'DELETE', headers: headers() });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    closeModal();
+    closeDetailPanel();
+    toast(`ลบสมาชิก ${esc(d.name)} สำเร็จ`);
+    loadStats();
+    searchMembers();
+  } catch (e) {
+    toast(e.message, 'error');
   }
 }
 

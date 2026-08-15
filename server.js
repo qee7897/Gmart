@@ -177,6 +177,21 @@ app.get("/api/admin/members", requireAdmin, async (req,res) => {
   res.json(r.rows);
 });
 
+app.delete("/api/admin/members/:code", requireAdmin, async (req,res) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const m = await client.query("SELECT * FROM members WHERE member_code=$1 FOR UPDATE",[req.params.code]);
+    if (!m.rows[0]) throw new Error("ไม่พบสมาชิก");
+    await client.query("DELETE FROM members WHERE id=$1",[m.rows[0].id]);
+    await client.query("COMMIT");
+    res.json({ok:true, name:m.rows[0].name});
+  } catch(e) {
+    await client.query("ROLLBACK");
+    res.status(400).json({error:e.message});
+  } finally { client.release(); }
+});
+
 app.post("/api/admin/earn", requireAdmin, async (req,res) => {
   const {memberCode, amount, description="ซื้อสินค้า"} = req.body;
   const numericAmount = Number(amount);
