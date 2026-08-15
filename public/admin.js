@@ -651,7 +651,7 @@ function renderProducts() {
       <div class="card-item">
         <div class="card-item-body">
           <div class="card-item-title">${esc(x.name)} ${x.active ? '' : '<span class="badge-off">ปิดใช้งาน</span>'}</div>
-          <div class="card-item-meta">฿${Number(x.price).toLocaleString()} · สต็อก ${x.stock} ${x.stock <= 5 ? '<span style="color:#dc2626">⚠️ ใกล้หมด</span>' : ''}</div>
+          <div class="card-item-meta">${x.barcode ? '📊 ' + esc(x.barcode) + ' · ' : ''}฿${Number(x.price).toLocaleString()} · สต็อก ${x.stock} ${x.stock <= 5 ? '<span style="color:#dc2626">⚠️ ใกล้หมด</span>' : ''}</div>
         </div>
         <div class="card-item-actions">
           <button class="btn-sm btn-outline" onclick='openProductModal(${JSON.stringify(x).replace(/'/g, "&#39;")})'>✏️</button>
@@ -668,6 +668,10 @@ function openProductModal(existing) {
   const isEdit = !!existing;
   const title = isEdit ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่';
   const body = `
+    <div class="form-group">
+      <label>บาร์โค้ด</label>
+      <input id="mPrBarcode" value="${isEdit ? esc(existing.barcode || '') : ''}" placeholder="ยิงบาร์โค้ด หรือกรอกเอง">
+    </div>
     <div class="form-group">
       <label>ชื่อสินค้า</label>
       <input id="mPrName" value="${isEdit ? esc(existing.name) : ''}" placeholder="เช่น น้ำดื่มคริสตัล 600ml">
@@ -695,6 +699,7 @@ function openProductModal(existing) {
 }
 
 async function saveProduct(id) {
+  const barcode = $('#mPrBarcode').value.trim();
   const name = $('#mPrName').value.trim();
   const price = $('#mPrPrice').value;
   const stock = $('#mPrStock').value;
@@ -704,7 +709,7 @@ async function saveProduct(id) {
     const method = id ? 'PUT' : 'POST';
     const r = await fetch(url, {
       method, headers: headers({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ name, price, stock, category })
+      body: JSON.stringify({ barcode, name, price, stock, category })
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);
@@ -888,3 +893,108 @@ window.addEventListener('DOMContentLoaded', () => {
   const ps = $('#productSearch');
   if (ps) ps.addEventListener('keydown', e => { if (e.key === 'Enter') loadProducts(); });
 });
+
+// ===== Barcode Scanner =====
+
+// USB barcode scanner: auto-detect rapid input + Enter
+window.addEventListener('DOMContentLoaded', () => {
+  const barcodeInput = $('#sellBarcode');
+  if (barcodeInput) {
+    barcodeInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleBarcodeInput(barcodeInput.value.trim());
+      }
+    });
+  }
+});
+
+async function handleBarcodeInput(code) {
+  if (!code) return;
+  const resultEl = $('#barcodeResult');
+  // Try lookup by barcode first
+  try {
+    const r = await fetch('/api/products/barcode/' + encodeURIComponent(code));
+    if (r.ok) {
+      const product = await r.json();
+      addToCart(product.id);
+      resultEl.innerHTML = `<div class="action-msg show ok">✓ เพิ่ม ${esc(product.name)} ในตะกร้า</div>`;
+      setTimeout(() => resultEl.innerHTML = '', 2000);
+      $('#sellBarcode').value = '';
+      return;
+    }
+  } catch { /* ignore */ }
+
+  // If not found by barcode, search by name
+  try {
+    const r = await fetch('/api/admin/products?search=' + encodeURIComponent(code), { headers: headers() });
+    if (r.ok) {
+      const list = await r.json();
+      if (list.length === 1) {
+        addToCart(list[0].id);
+        resultEl.innerHTML = `<div class="action-msg show ok">✓ เพิ่ม ${esc(list[0].name)} ในตะกร้า</div>`;
+        setTimeout(() => resultEl.innerHTML = '', 2000);
+        $('#sellBarcode').value = '';
+        return;
+      } else if (list.length > 1) {
+        resultEl.innerHTML = `<div class="action-msg show err">พบ ${list.length} รายการ — คลิกเลือกด้านล่าง</div>`;
+        return;
+      }
+    }
+  } catch { /* ignore */ }
+
+  resultEl.innerHTML = `<div class="action-msg show err">ไม่พบสินค้า: ${esc(code)}</div>`;
+}
+
+// Camera scanner (html5-qrcode)
+let cameraScanner = null;
+let cameraRunning = false;
+
+function toggleCameraScanner() {
+  if (cameraRunning) {
+    stopCameraScanner();
+  } else {
+    startCameraScanner();
+  }
+}
+
+async function startCameraScanner() {
+  const container = $('#cameraScanner');
+  const preview = $('#scannerPreview');
+  container.classList.remove('hidden');
+  cameraRunning = true;
+
+  if (!window.Html5Qrcode) {
+    preview.innerHTML = '<div class="action-msg show err">ไม่สามารถโหลด library สแกนกล้องได้</div>';
+    return;
+  }
+
+  cameraScanner = new Html5Qrcode('scannerPreview');
+  try {
+    await cameraScanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.5 },
+      (decodedText) => {
+        // Found barcode
+        handleBarcodeInput(decodedText);
+        // Brief pause after scan
+        setTimeout(() => {}, 500);
+      },
+      () => {} // ignore errors during scanning
+    );
+  } catch (e) {
+    preview.innerHTML = `<div class="action-msg show err">ไม่สามารถเปิดกล้องได้: ${e.message || 'กรุณาอนุญาตกล้อง'}</div>`;
+    cameraRunning = false;
+  }
+}
+
+async function stopCameraScanner() {
+  if (cameraScanner && cameraRunning) {
+    try {
+      await cameraScanner.stop();
+      cameraScanner.clear();
+    } catch { /* ignore */ }
+  }
+  cameraRunning = false;
+  $('#cameraScanner').classList.add('hidden');
+}

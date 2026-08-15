@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/admin.css">
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body class="admin-body">
 
@@ -138,8 +139,20 @@
             </div>
             <div id="sellMemberInfo"></div>
           </div>
+          <div class="sell-barcode-section">
+            <label>ยิงบาร์โค้ด / ค้นหาสินค้า</label>
+            <div class="barcode-input-wrap">
+              <input id="sellBarcode" placeholder="ยิงบาร์โค้ด หรือพิมพ์ชื่อสินค้า..." autocomplete="off">
+              <button class="btn-cam" onclick="toggleCameraScanner()" title="สแกนจากกล้อง">📷</button>
+            </div>
+            <div id="barcodeResult"></div>
+            <div id="cameraScanner" class="camera-scanner hidden">
+              <div id="scannerPreview"></div>
+              <button class="btn-sm btn-danger" onclick="stopCameraScanner()">ปิดกล้อง</button>
+            </div>
+          </div>
           <div class="sell-products">
-            <label>เลือกสินค้า</label>
+            <label>สินค้าทั้งหมด (คลิกเพื่อเพิ่มในตะกร้า)</label>
             <div id="sellProductList"></div>
           </div>
         </div>

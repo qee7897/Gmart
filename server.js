@@ -87,6 +87,7 @@ async function initDb() {
 
     CREATE TABLE IF NOT EXISTS products (
       id SERIAL PRIMARY KEY,
+      barcode VARCHAR(50) UNIQUE,
       name VARCHAR(200) NOT NULL,
       price NUMERIC(10,2) NOT NULL,
       category VARCHAR(100) DEFAULT 'ทั่วไป',
@@ -448,6 +449,13 @@ app.get("/api/products", async (req,res) => {
   res.json(r.rows);
 });
 
+// ค้นหาสินค้าด้วยบาร์โค้ด (POS)
+app.get("/api/products/barcode/:code", async (req,res) => {
+  const r = await db("SELECT * FROM products WHERE barcode=$1 AND active=true",[req.params.code]);
+  if (!r.rows[0]) return res.status(404).json({error:"ไม่พบสินค้า"});
+  res.json(r.rows[0]);
+});
+
 app.get("/api/admin/products", requireAdmin, async (req,res) => {
   const q = String(req.query.search || "").trim();
   if (!q) {
@@ -463,24 +471,30 @@ app.get("/api/admin/products", requireAdmin, async (req,res) => {
 });
 
 app.post("/api/admin/products", requireAdmin, async (req,res) => {
-  const {name, price, category, stock} = req.body;
+  const {barcode, name, price, category, stock} = req.body;
   const numPrice = Number(price);
   const numStock = Math.trunc(Number(stock));
   if (!name || !Number.isFinite(numPrice) || numPrice <= 0) return res.status(400).json({error:"ข้อมูลไม่ถูกต้อง"});
   if (!Number.isFinite(numStock) || numStock < 0) return res.status(400).json({error:"จำนวนสต็อกไม่ถูกต้อง"});
-  const r = await db(
-    `INSERT INTO products (name,price,category,stock) VALUES ($1,$2,$3,$4) RETURNING *`,
-    [String(name).trim().slice(0,200), numPrice, category||'ทั่วไป', numStock]
-  );
-  res.json(r.rows[0]);
+  try {
+    const r = await db(
+      `INSERT INTO products (barcode,name,price,category,stock) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [barcode||null, String(name).trim().slice(0,200), numPrice, category||'ทั่วไป', numStock]
+    );
+    res.json(r.rows[0]);
+  } catch(e) {
+    if (e.code === "23505") return res.status(409).json({error:"บาร์โค้ดนี้มีในระบบแล้ว"});
+    res.status(500).json({error:"เกิดข้อผิดพลาด"});
+  }
 });
 
 app.put("/api/admin/products/:id", requireAdmin, async (req,res) => {
   const existing = await db("SELECT * FROM products WHERE id=$1",[req.params.id]);
   if (!existing.rows[0]) return res.status(404).json({error:"ไม่พบสินค้า"});
   const cur = existing.rows[0];
-  const {name, price, category, stock, active} = req.body;
+  const {barcode, name, price, category, stock, active} = req.body;
   const newName = name !== undefined ? String(name).trim().slice(0,200) : cur.name;
+  const newBarcode = barcode !== undefined ? (barcode || null) : cur.barcode;
   const newPrice = price !== undefined ? Number(price) : Number(cur.price);
   const newCategory = category !== undefined ? category : cur.category;
   const newStock = stock !== undefined ? Math.trunc(Number(stock)) : cur.stock;
@@ -488,8 +502,8 @@ app.put("/api/admin/products/:id", requireAdmin, async (req,res) => {
   if (!newName || !Number.isFinite(newPrice) || newPrice <= 0) return res.status(400).json({error:"ข้อมูลไม่ถูกต้อง"});
   if (!Number.isFinite(newStock) || newStock < 0) return res.status(400).json({error:"จำนวนสต็อกไม่ถูกต้อง"});
   const r = await db(
-    `UPDATE products SET name=$1, price=$2, category=$3, stock=$4, active=$5 WHERE id=$6 RETURNING *`,
-    [newName, newPrice, newCategory, newStock, newActive, req.params.id]
+    `UPDATE products SET barcode=$1, name=$2, price=$3, category=$4, stock=$5, active=$6 WHERE id=$7 RETURNING *`,
+    [newBarcode, newName, newPrice, newCategory, newStock, newActive, req.params.id]
   );
   res.json(r.rows[0]);
 });
@@ -514,8 +528,13 @@ app.post("/api/admin/sell", requireAdmin, async (req,res) => {
     let totalAmount = 0;
     const soldItems = [];
     for (const item of items) {
-      const p = await client.query("SELECT * FROM products WHERE id=$1 AND active=true FOR UPDATE",[item.productId]);
-      if (!p.rows[0]) throw new Error(`ไม่พบสินค้า id ${item.productId}`);
+      let p;
+      if (item.barcode) {
+        p = await client.query("SELECT * FROM products WHERE barcode=$1 AND active=true FOR UPDATE",[item.barcode]);
+      } else {
+        p = await client.query("SELECT * FROM products WHERE id=$1 AND active=true FOR UPDATE",[item.productId]);
+      }
+      if (!p.rows[0]) throw new Error(`ไม่พบสินค้า ${item.barcode || item.productId}`);
       const product = p.rows[0];
       const qty = Math.trunc(Number(item.qty));
       if (!qty || qty <= 0) throw new Error(`จำนวนสินค้าไม่ถูกต้อง`);

@@ -381,3 +381,36 @@
   .sell-wrap { grid-template-columns: 1fr; }
   .sell-cart { position: static; }
 }
+
+/* ===== Barcode Scanner ===== */
+.sell-barcode-section {
+  margin-bottom: 20px;
+}
+.sell-barcode-section label {
+  display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 8px;
+}
+.barcode-input-wrap {
+  display: flex; gap: 8px;
+}
+.barcode-input-wrap input {
+  flex: 1; border: 2px solid #e2e8f0; background: #fff;
+  padding: 12px 16px; border-radius: 12px; font-size: 16px;
+  outline: none; font-family: 'Courier New', monospace; letter-spacing: 1px;
+}
+.barcode-input-wrap input:focus { border-color: #16a34a; }
+.btn-cam {
+  width: 48px; height: 48px; border-radius: 12px;
+  border: 2px solid #e2e8f0; background: #fff; cursor: pointer;
+  font-size: 22px; display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.btn-cam:hover { border-color: #16a34a; background: #f0fdf4; }
+
+.camera-scanner {
+  margin-top: 12px; padding: 16px; background: #000;
+  border-radius: 14px; text-align: center;
+}
+.camera-scanner video { border-radius: 10px; }
+.camera-scanner .btn-danger { margin-top: 12px; }
+
+#barcodeResult { margin-top: 8px; }
