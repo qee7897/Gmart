@@ -84,6 +84,16 @@ async function initDb() {
       ticket_code VARCHAR(40) UNIQUE NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS products (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(200) NOT NULL,
+      price NUMERIC(10,2) NOT NULL,
+      category VARCHAR(100) DEFAULT 'ทั่วไป',
+      stock INTEGER NOT NULL DEFAULT 0,
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
   `);
 
   const count = await db("SELECT COUNT(*) FROM rewards");
@@ -429,6 +439,108 @@ app.get("/api/admin/stats", requireAdmin, async (req,res) => {
     used: Number(points.rows[0].used),
     eventEntries: Number(entries.rows[0].count)
   });
+});
+
+// ===== Products API =====
+
+app.get("/api/products", async (req,res) => {
+  const r = await db("SELECT * FROM products WHERE active=true ORDER BY category, name");
+  res.json(r.rows);
+});
+
+app.get("/api/admin/products", requireAdmin, async (req,res) => {
+  const q = String(req.query.search || "").trim();
+  if (!q) {
+    const r = await db("SELECT * FROM products ORDER BY category, name");
+    return res.json(r.rows);
+  }
+  const like = `%${q}%`;
+  const r = await db(
+    `SELECT * FROM products WHERE name ILIKE $1 OR category ILIKE $1 ORDER BY category, name`,
+    [like]
+  );
+  res.json(r.rows);
+});
+
+app.post("/api/admin/products", requireAdmin, async (req,res) => {
+  const {name, price, category, stock} = req.body;
+  const numPrice = Number(price);
+  const numStock = Math.trunc(Number(stock));
+  if (!name || !Number.isFinite(numPrice) || numPrice <= 0) return res.status(400).json({error:"ข้อมูลไม่ถูกต้อง"});
+  if (!Number.isFinite(numStock) || numStock < 0) return res.status(400).json({error:"จำนวนสต็อกไม่ถูกต้อง"});
+  const r = await db(
+    `INSERT INTO products (name,price,category,stock) VALUES ($1,$2,$3,$4) RETURNING *`,
+    [String(name).trim().slice(0,200), numPrice, category||'ทั่วไป', numStock]
+  );
+  res.json(r.rows[0]);
+});
+
+app.put("/api/admin/products/:id", requireAdmin, async (req,res) => {
+  const existing = await db("SELECT * FROM products WHERE id=$1",[req.params.id]);
+  if (!existing.rows[0]) return res.status(404).json({error:"ไม่พบสินค้า"});
+  const cur = existing.rows[0];
+  const {name, price, category, stock, active} = req.body;
+  const newName = name !== undefined ? String(name).trim().slice(0,200) : cur.name;
+  const newPrice = price !== undefined ? Number(price) : Number(cur.price);
+  const newCategory = category !== undefined ? category : cur.category;
+  const newStock = stock !== undefined ? Math.trunc(Number(stock)) : cur.stock;
+  const newActive = active !== undefined ? !!active : cur.active;
+  if (!newName || !Number.isFinite(newPrice) || newPrice <= 0) return res.status(400).json({error:"ข้อมูลไม่ถูกต้อง"});
+  if (!Number.isFinite(newStock) || newStock < 0) return res.status(400).json({error:"จำนวนสต็อกไม่ถูกต้อง"});
+  const r = await db(
+    `UPDATE products SET name=$1, price=$2, category=$3, stock=$4, active=$5 WHERE id=$6 RETURNING *`,
+    [newName, newPrice, newCategory, newStock, newActive, req.params.id]
+  );
+  res.json(r.rows[0]);
+});
+
+app.delete("/api/admin/products/:id", requireAdmin, async (req,res) => {
+  const r = await db("DELETE FROM products WHERE id=$1 RETURNING id",[req.params.id]);
+  if (!r.rows[0]) return res.status(404).json({error:"ไม่พบสินค้า"});
+  res.json({ok:true});
+});
+
+// ขายสินค้า — เลือกสินค้า + จำนวน → คำนวณยอด → เพิ่มแต้มให้สมาชิก
+app.post("/api/admin/sell", requireAdmin, async (req,res) => {
+  const {memberCode, items} = req.body;
+  // items = [{productId, qty}, ...]
+  if (!memberCode || !items || !items.length) return res.status(400).json({error:"ข้อมูลไม่ถูกต้อง"});
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const m = await client.query("SELECT * FROM members WHERE member_code=$1 FOR UPDATE",[memberCode]);
+    if (!m.rows[0]) throw new Error("ไม่พบสมาชิก");
+
+    let totalAmount = 0;
+    const soldItems = [];
+    for (const item of items) {
+      const p = await client.query("SELECT * FROM products WHERE id=$1 AND active=true FOR UPDATE",[item.productId]);
+      if (!p.rows[0]) throw new Error(`ไม่พบสินค้า id ${item.productId}`);
+      const product = p.rows[0];
+      const qty = Math.trunc(Number(item.qty));
+      if (!qty || qty <= 0) throw new Error(`จำนวนสินค้าไม่ถูกต้อง`);
+      if (product.stock < qty) throw new Error(`สินค้า "${product.name}" คงเหลือ ${product.stock} ไม่พอ`);
+      const subtotal = Number(product.price) * qty;
+      totalAmount += subtotal;
+      await client.query("UPDATE products SET stock=stock-$1 WHERE id=$2",[qty, product.id]);
+      soldItems.push({name:product.name, price:Number(product.price), qty, subtotal});
+    }
+
+    const points = Math.floor(totalAmount / 20);
+    await client.query("UPDATE members SET points=points+$1 WHERE id=$2",[points,m.rows[0].id]);
+
+    const desc = soldItems.map(x => `${x.name} x${x.qty}`).join(', ');
+    await client.query(
+      `INSERT INTO transactions (member_id,type,points,amount,description) VALUES ($1,'earn',$2,$3,$4)`,
+      [m.rows[0].id, points, totalAmount, `ขาย: ${desc}`]
+    );
+
+    await client.query("COMMIT");
+    res.json({ok:true, totalAmount, points, items:soldItems});
+  } catch(e) {
+    await client.query("ROLLBACK");
+    res.status(400).json({error:e.message});
+  } finally { client.release(); }
 });
 
 app.get("/admin", (req,res) => {

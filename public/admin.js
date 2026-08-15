@@ -96,6 +96,8 @@ const tabTitles = {
   dashboard: 'แดชบอร์ด',
   members: 'จัดการสมาชิก',
   rewards: 'จัดการของรางวัล',
+  products: 'จัดการสินค้า',
+  sell: 'ขายสินค้า (POS)',
   events: 'จัดการอีเวนต์'
 };
 
@@ -115,7 +117,7 @@ function toggleSidebar() {
 
 // ===== Load All Data =====
 async function loadAll() {
-  await Promise.all([loadStats(), searchMembers(), loadRewards(), loadEvents()]);
+  await Promise.all([loadStats(), searchMembers(), loadRewards(), loadEvents(), loadProducts()]);
 }
 
 // ===== Stats =====
@@ -617,3 +619,272 @@ async function loadDashEvents() {
     `).join('') : '<div class="dash-empty">ไม่มีอีเวนต์ที่เปิดใช้งาน</div>';
   } catch { /* ignore */ }
 }
+
+// ===== Products =====
+let allProducts = [];
+
+async function loadProducts() {
+  const q = $('#productSearch') ? $('#productSearch').value.trim() : '';
+  try {
+    const r = await fetch('/api/admin/products?search=' + encodeURIComponent(q), { headers: headers() });
+    if (!r.ok) throw new Error();
+    allProducts = await r.json();
+    renderProducts();
+  } catch { /* ignore */ }
+}
+
+function renderProducts() {
+  if (!allProducts.length) {
+    $('#productsList').innerHTML = '<div class="dash-empty">ยังไม่มีสินค้า</div>';
+    return;
+  }
+  const groups = {};
+  allProducts.forEach(p => {
+    const cat = p.category || 'ทั่วไป';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(p);
+  });
+  let html = '';
+  for (const [cat, items] of Object.entries(groups)) {
+    html += `<div class="cat-header">${esc(cat)} (${items.length})</div>`;
+    html += items.map(x => `
+      <div class="card-item">
+        <div class="card-item-body">
+          <div class="card-item-title">${esc(x.name)} ${x.active ? '' : '<span class="badge-off">ปิดใช้งาน</span>'}</div>
+          <div class="card-item-meta">฿${Number(x.price).toLocaleString()} · สต็อก ${x.stock} ${x.stock <= 5 ? '<span style="color:#dc2626">⚠️ ใกล้หมด</span>' : ''}</div>
+        </div>
+        <div class="card-item-actions">
+          <button class="btn-sm btn-outline" onclick='openProductModal(${JSON.stringify(x).replace(/'/g, "&#39;")})'>✏️</button>
+          <button class="btn-sm btn-ghost" onclick="toggleProduct(${x.id},${!x.active})">${x.active ? '⏸' : '▶'}</button>
+          <button class="btn-sm btn-danger" onclick="deleteProduct(${x.id},'${esc(x.name)}')">🗑</button>
+        </div>
+      </div>
+    `).join('');
+  }
+  $('#productsList').innerHTML = html;
+}
+
+function openProductModal(existing) {
+  const isEdit = !!existing;
+  const title = isEdit ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่';
+  const body = `
+    <div class="form-group">
+      <label>ชื่อสินค้า</label>
+      <input id="mPrName" value="${isEdit ? esc(existing.name) : ''}" placeholder="เช่น น้ำดื่มคริสตัล 600ml">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>ราคา (บาท)</label>
+        <input id="mPrPrice" type="number" step="0.01" value="${isEdit ? existing.price : ''}" placeholder="25">
+      </div>
+      <div class="form-group">
+        <label>สต็อก</label>
+        <input id="mPrStock" type="number" value="${isEdit ? existing.stock : ''}" placeholder="100">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>หมวดหมู่</label>
+      <input id="mPrCategory" value="${isEdit ? esc(existing.category || '') : ''}" placeholder="เช่น เครื่องดื่ม, ขนม, ของใช้">
+    </div>
+  `;
+  const footer = `
+    <button class="btn-sm btn-ghost" onclick="closeModal()">ยกเลิก</button>
+    <button class="btn-primary" onclick="saveProduct(${isEdit ? existing.id : 'null'})">${isEdit ? 'บันทึก' : 'เพิ่ม'}</button>
+  `;
+  openModal(title, body, footer);
+}
+
+async function saveProduct(id) {
+  const name = $('#mPrName').value.trim();
+  const price = $('#mPrPrice').value;
+  const stock = $('#mPrStock').value;
+  const category = $('#mPrCategory').value.trim() || 'ทั่วไป';
+  try {
+    const url = id ? `/api/admin/products/${id}` : '/api/admin/products';
+    const method = id ? 'PUT' : 'POST';
+    const r = await fetch(url, {
+      method, headers: headers({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ name, price, stock, category })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    closeModal();
+    toast(id ? 'แก้ไขสินค้าสำเร็จ' : 'เพิ่มสินค้าสำเร็จ ✓');
+    loadProducts();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function toggleProduct(id, active) {
+  try {
+    const r = await fetch(`/api/admin/products/${id}`, {
+      method: 'PUT', headers: headers({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ active })
+    });
+    if (!r.ok) throw new Error();
+    toast(active ? 'เปิดใช้งานแล้ว' : 'ปิดใช้งานแล้ว', 'info');
+    loadProducts();
+  } catch { toast('เกิดข้อผิดพลาด', 'error'); }
+}
+
+function deleteProduct(id, name) {
+  openModal('ยืนยันการลบ', `
+    <p style="color:#475569">ต้องการลบสินค้า "<b>${esc(name)}</b>" ใช่ไหม?</p>
+  `, `
+    <button class="btn-sm btn-ghost" onclick="closeModal()">ยกเลิก</button>
+    <button class="btn-danger" onclick="confirmDeleteProduct(${id})">🗑 ยืนยันลบ</button>
+  `);
+}
+
+async function confirmDeleteProduct(id) {
+  try {
+    const r = await fetch(`/api/admin/products/${id}`, { method: 'DELETE', headers: headers() });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
+    closeModal();
+    toast('ลบสินค้าสำเร็จ');
+    loadProducts();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// ===== Sell (POS) =====
+let sellCart = [];
+let sellMember = null;
+
+async function sellLookupMember() {
+  const code = $('#sellMemberCode').value.trim();
+  if (!code) return;
+  try {
+    const r = await fetch('/api/members/' + encodeURIComponent(code));
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    sellMember = d;
+    $('#sellMemberInfo').innerHTML = `<div class="sell-member-card">👤 ${esc(d.name)} · รหัส ${esc(d.member_code)} · ${fmtNum(d.points)} แต้ม</div>`;
+    loadSellProducts();
+  } catch (e) {
+    sellMember = null;
+    $('#sellMemberInfo').innerHTML = `<div class="action-msg show err">${e.message}</div>`;
+  }
+}
+
+async function loadSellProducts() {
+  try {
+    const r = await fetch('/api/admin/products', { headers: headers() });
+    if (!r.ok) return;
+    const list = await r.json();
+    const active = list.filter(x => x.active && x.stock > 0);
+    if (!active.length) {
+      $('#sellProductList').innerHTML = '<div class="dash-empty">ไม่มีสินค้าพร้อมขาย</div>';
+      return;
+    }
+    const groups = {};
+    active.forEach(p => {
+      const cat = p.category || 'ทั่วไป';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(p);
+    });
+    let html = '';
+    for (const [cat, items] of Object.entries(groups)) {
+      html += `<div class="sell-cat">${esc(cat)}</div>`;
+      html += items.map(x => `
+        <div class="sell-item" onclick="addToCart(${x.id})">
+          <div class="sell-item-name">${esc(x.name)}</div>
+          <div class="sell-item-meta">฿${Number(x.price).toLocaleString()} · เหลือ ${x.stock}</div>
+        </div>
+      `).join('');
+    }
+    $('#sellProductList').innerHTML = html;
+  } catch { /* ignore */ }
+}
+
+function addToCart(productId) {
+  const product = allProducts.find(p => p.id === productId);
+  if (!product) {
+    // reload products
+    fetch('/api/admin/products', { headers: headers() })
+      .then(r => r.json())
+      .then(list => { allProducts = list; addToCart(productId); });
+    return;
+  }
+  const existing = sellCart.find(c => c.productId === productId);
+  if (existing) {
+    if (existing.qty >= product.stock) { toast('สินค้าในสต็อกไม่พอ', 'error'); return; }
+    existing.qty++;
+  } else {
+    sellCart.push({ productId, name: product.name, price: Number(product.price), qty: 1, maxStock: product.stock });
+  }
+  renderCart();
+}
+
+function removeFromCart(productId) {
+  sellCart = sellCart.filter(c => c.productId !== productId);
+  renderCart();
+}
+
+function updateCartQty(productId, delta) {
+  const item = sellCart.find(c => c.productId === productId);
+  if (!item) return;
+  item.qty += delta;
+  if (item.qty <= 0) { removeFromCart(productId); return; }
+  if (item.qty > item.maxStock) { item.qty = item.maxStock; toast('สินค้าในสต็อกไม่พอ', 'error'); }
+  renderCart();
+}
+
+function renderCart() {
+  if (!sellCart.length) {
+    $('#sellCart').innerHTML = '<div class="dash-empty">ยังไม่มีสินค้าในตะกร้า</div>';
+    $('#sellTotal').innerHTML = '';
+    return;
+  }
+  const total = sellCart.reduce((s, c) => s + c.price * c.qty, 0);
+  const points = Math.floor(total / 20);
+  $('#sellCart').innerHTML = sellCart.map(c => `
+    <div class="cart-row">
+      <div class="cart-info">
+        <div class="cart-name">${esc(c.name)}</div>
+        <div class="cart-price">฿${c.price.toLocaleString()} × ${c.qty} = ฿${(c.price * c.qty).toLocaleString()}</div>
+      </div>
+      <div class="cart-qty">
+        <button onclick="updateCartQty(${c.productId},-1)">−</button>
+        <span>${c.qty}</span>
+        <button onclick="updateCartQty(${c.productId},1)">+</button>
+        <button class="cart-del" onclick="removeFromCart(${c.productId})">✕</button>
+      </div>
+    </div>
+  `).join('');
+  $('#sellTotal').innerHTML = `
+    <div class="total-row"><span>รวม</span><b>฿${total.toLocaleString()}</b></div>
+    <div class="total-row"><span>แต้มที่ได้</span><b class="plus">+${points}</b></div>
+  `;
+}
+
+async function doSell() {
+  if (!sellMember) { toast('กรุณาเลือกสมาชิกก่อน', 'error'); return; }
+  if (!sellCart.length) { toast('กรุณาเลือกสินค้า', 'error'); return; }
+  try {
+    const r = await fetch('/api/admin/sell', {
+      method: 'POST', headers: headers({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        memberCode: sellMember.member_code,
+        items: sellCart.map(c => ({ productId: c.productId, qty: c.qty }))
+      })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    const msg = `ขายสำเร็จ ✓ รวม ฿${d.totalAmount.toLocaleString()} · +${d.points} แต้ม`;
+    $('#sellResult').innerHTML = `<div class="action-msg show ok">${msg}</div>`;
+    toast(msg);
+    sellCart = [];
+    sellMember = null;
+    $('#sellMemberCode').value = '';
+    $('#sellMemberInfo').innerHTML = '';
+    renderCart();
+    loadSellProducts();
+    loadStats();
+    searchMembers();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// Product search enter key
+window.addEventListener('DOMContentLoaded', () => {
+  const ps = $('#productSearch');
+  if (ps) ps.addEventListener('keydown', e => { if (e.key === 'Enter') loadProducts(); });
+});

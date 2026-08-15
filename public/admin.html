@@ -38,6 +38,12 @@
       <button class="side-btn" data-tab="rewards" onclick="switchTab('rewards')">
         <span class="side-icon">🎁</span> ของรางวัล
       </button>
+      <button class="side-btn" data-tab="products" onclick="switchTab('products')">
+        <span class="side-icon">📦</span> สินค้า
+      </button>
+      <button class="side-btn" data-tab="sell" onclick="switchTab('sell')">
+        <span class="side-icon">🛒</span> ขายสินค้า
+      </button>
       <button class="side-btn" data-tab="events" onclick="switchTab('events')">
         <span class="side-icon">🎉</span> อีเวนต์
       </button>
@@ -104,6 +110,49 @@
         <button class="btn-primary" onclick="openRewardModal()">+ เพิ่มของรางวัล</button>
       </div>
       <div id="rewardsList" class="card-list"></div>
+    </div>
+
+    <!-- Products -->
+    <div class="tab" id="tab-products">
+      <div class="toolbar">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input id="productSearch" placeholder="ค้นหาสินค้า..." autocomplete="off">
+          <kbd>Enter</kbd>
+        </div>
+        <button class="btn-primary" onclick="openProductModal()">+ เพิ่มสินค้า</button>
+      </div>
+      <div id="productsList" class="card-list"></div>
+    </div>
+
+    <!-- Sell -->
+    <div class="tab" id="tab-sell">
+      <div class="sell-wrap">
+        <div class="sell-left">
+          <h3>🛒 ขายสินค้า</h3>
+          <div class="sell-member">
+            <label>รหัสสมาชิก</label>
+            <div class="input-group">
+              <input id="sellMemberCode" placeholder="เช่น 100001">
+              <button class="btn-sm" onclick="sellLookupMember()">ค้นหา</button>
+            </div>
+            <div id="sellMemberInfo"></div>
+          </div>
+          <div class="sell-products">
+            <label>เลือกสินค้า</label>
+            <div id="sellProductList"></div>
+          </div>
+        </div>
+        <div class="sell-right">
+          <div class="sell-cart">
+            <h3>ตะกร้าสินค้า</h3>
+            <div id="sellCart"></div>
+            <div class="sell-total" id="sellTotal"></div>
+            <button class="btn-primary btn-full" onclick="doSell()">ยืนยันขาย</button>
+            <div id="sellResult"></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Events -->
